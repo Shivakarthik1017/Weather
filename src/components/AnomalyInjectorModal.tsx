@@ -95,8 +95,8 @@ export const AnomalyInjectorModal: React.FC<AnomalyInjectorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3">
-      <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col text-slate-900 text-xs">
+    <div className="fixed inset-0 z-[1000] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3">
+      <div className="relative z-[1100] bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col text-slate-900 text-xs">
         {/* Header */}
         <div className="p-4 bg-gradient-to-r from-amber-600 to-rose-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">

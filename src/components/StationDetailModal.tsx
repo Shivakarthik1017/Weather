@@ -94,8 +94,8 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
   const isAnomalous = currentDet?.status === 'ANOMALOUS';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
+    <div className="fixed inset-0 z-[1000] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="relative z-[1100] bg-white rounded-2xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900">
         {/* Modal Top Header */}
         <div className="p-4 bg-slate-900 text-white flex items-start justify-between border-b border-slate-800">
           <div className="flex items-start gap-3">
