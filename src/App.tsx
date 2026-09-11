@@ -270,15 +270,17 @@ export default function App() {
       </main>
 
       {/* Station Deep Dive Modal Drawer */}
-      <StationDetailModal
-        stationId={selectedStationId}
-        onClose={() => setSelectedStationId(null)}
-        observations={observations}
-        detections={detections}
-        healthRecords={healthRecords}
-        history={selectedStationId && simEngineRef.current ? simEngineRef.current.getStationHistory(selectedStationId) : []}
-        onInjectFault={handleQuickInject}
-      />
+      {selectedStationId && (
+        <StationDetailModal
+          stationId={selectedStationId}
+          onClose={() => setSelectedStationId(null)}
+          observations={observations}
+          detections={detections}
+          healthRecords={healthRecords}
+          history={simEngineRef.current ? simEngineRef.current.getStationHistory(selectedStationId) : []}
+          onInjectFault={handleQuickInject}
+        />
+      )}
 
       {/* Anomaly Injector Sandbox Modal */}
       <AnomalyInjectorModal

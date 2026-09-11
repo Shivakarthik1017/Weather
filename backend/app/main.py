@@ -102,6 +102,7 @@ async def simulation_loop():
     # Pre-seed with 6 cycles
     for _ in range(6):
         pipeline.process_cycle()
+        await asyncio.sleep(0.05)
 
     while True:
         try:
@@ -129,4 +130,4 @@ async def startup_event():
     asyncio.create_task(simulation_loop())
 
 if __name__ == "__main__":
-    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8001, reload=False)

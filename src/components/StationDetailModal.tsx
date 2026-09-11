@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AWS_STATIONS } from '../data/stations';
 import {
   AnomalyDetectionResult,
   OpenMeteoReferenceData,
   SensorHealthRecord,
+  ShapExplanation,
   TierValidationResult,
   WeatherObservation
 } from '../types';
 import { fetchOpenMeteoReference } from '../services/openMeteoService';
+import { fetchShapExplanation } from '../services/shapService';
+import { ShapExplanationView } from './ShapExplanationView';
 import {
   X,
   MapPin,
@@ -59,14 +62,39 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
   const [isLoadingOpenMeteo, setIsLoadingOpenMeteo] = useState(false);
   const [openMeteoError, setOpenMeteoError] = useState<string | null>(null);
 
+  const [shapExplanation, setShapExplanation] = useState<ShapExplanation | null>(null);
+  const [isLoadingShap, setIsLoadingShap] = useState(false);
+
+  const station = stationId ? AWS_STATIONS.find((s) => s.id === stationId) : undefined;
+  const currentObs = stationId ? observations.get(stationId) : undefined;
+  const currentDet = stationId ? detections.get(stationId) : undefined;
+  const health = stationId ? healthRecords.get(stationId) : undefined;
+
+  const loadShap = useCallback(async () => {
+    if (!stationId) return;
+    setIsLoadingShap(true);
+    try {
+      const exp = await fetchShapExplanation(stationId, undefined, currentObs, currentDet, history);
+      setShapExplanation(exp);
+    } catch (e) {
+      console.error('Failed to load SHAP explanation:', e);
+    } finally {
+      setIsLoadingShap(false);
+    }
+  }, [stationId, currentObs, currentDet, history]);
+
+  useEffect(() => {
+    if (stationId) {
+      loadShap();
+    } else {
+      setShapExplanation(null);
+      setOpenMeteoData(null);
+      setOpenMeteoError(null);
+    }
+  }, [stationId, currentDet?.timestamp, loadShap]);
+
   if (!stationId) return null;
-
-  const station = AWS_STATIONS.find((s) => s.id === stationId);
   if (!station) return null;
-
-  const currentObs = observations.get(stationId);
-  const currentDet = detections.get(stationId);
-  const health = healthRecords.get(stationId);
 
   // Format historical data for Recharts
   const chartData = history.map((h) => ({
@@ -301,6 +329,13 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Explainable AI: SHAP Feature Attribution (TreeExplainer) */}
+          <ShapExplanationView
+            explanation={shapExplanation}
+            isLoading={isLoadingShap}
+            onRefresh={loadShap}
+          />
 
           {/* Spatial Neighbor Cross-Station Table */}
           {currentDet?.tierResults.spatial.details.neighborCount > 0 && (

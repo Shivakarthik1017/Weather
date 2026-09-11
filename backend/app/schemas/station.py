@@ -93,3 +93,27 @@ class EvaluationMetricsResponse(BaseModel):
     false_positive_rate: float
     avg_detection_latency_ms: float
     avg_processing_time_ms: float
+
+class ShapFeatureContribution(BaseModel):
+    feature: str
+    display_name: str
+    value: float
+    unit: str
+    description: Optional[str] = ""
+    shap_value: float
+    raw_tree_shap: Optional[float] = None
+    importance: float
+    direction: str  # "anomaly_increasing" | "anomaly_decreasing"
+    impact_description: str
+
+class ShapExplanationResponse(BaseModel):
+    available: bool
+    model: str
+    anomaly_score: float
+    base_value: float
+    expected_value: float
+    top_features: List[ShapFeatureContribution]
+    all_features: Optional[List[ShapFeatureContribution]] = None
+    summary: str
+    root_cause: Optional[str] = None
+    confidence: Optional[float] = None

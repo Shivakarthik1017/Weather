@@ -15,6 +15,7 @@ from backend.app.detection.temporal import TemporalAnomalyEngine
 from backend.app.detection.multivariate import MultivariateConsistencyEngine
 from backend.app.detection.spatial import SpatialCrossStationEngine
 from backend.app.ml.isolation_forest import IsolationForestEngine
+from backend.app.ml.shap_explainer import SkyGuardShapExplainer
 from backend.app.detection.fusion import AnomalyFusionEngine
 from backend.app.detection.root_cause import RootCauseClassifier
 from backend.app.services.health import SensorHealthEngine
@@ -40,6 +41,7 @@ class SkyGuardPipeline:
             max_radius_km=settings.SPATIAL_MAX_RADIUS_KM
         )
         self.ml_engine = IsolationForestEngine()
+        self.shap_explainer = SkyGuardShapExplainer(self.ml_engine)
         self.fusion_engine = AnomalyFusionEngine()
         self.root_cause_engine = RootCauseClassifier()
         self.health_engine = SensorHealthEngine(window_size=30)
@@ -51,6 +53,8 @@ class SkyGuardPipeline:
         self.is_running = True
         self.latest_observations: Dict[str, Dict[str, Any]] = {}
         self.latest_anomalies: Dict[str, Dict[str, Any]] = {}
+        self.latest_features: Dict[str, Dict[str, Any]] = {}
+        self.latest_explanations: Dict[str, Dict[str, Any]] = {}
         self.active_anomaly_records: List[Dict[str, Any]] = []
         self.station_history: Dict[str, List[Dict[str, Any]]] = {}
         self.ws_clients: List[Any] = []
@@ -217,11 +221,24 @@ class SkyGuardPipeline:
 
                 # Update memory cache
                 self.latest_observations[sid] = obs
+                self.latest_features[sid] = ml_features
                 if sid not in self.station_history:
                     self.station_history[sid] = []
                 self.station_history[sid].append(obs)
                 if len(self.station_history[sid]) > 100:
                     self.station_history[sid].pop(0)
+
+                # Compute SHAP explanation if anomalous or significant shift
+                shap_exp = None
+                if fused_score >= 35.0 or classification in ["GENUINE WEATHER EVENT", "FROZEN SENSOR", "SENSOR DRIFT", "COMMUNICATION ISSUE"]:
+                    shap_exp = self.shap_explainer.explain(
+                        feature_dict=ml_features,
+                        anomaly_score=fused_score,
+                        classification=classification,
+                        root_cause=root_cause,
+                        confidence=confidence
+                    )
+                    self.latest_explanations[sid] = shap_exp
 
                 # Build record object
                 station_summary = {
@@ -239,12 +256,23 @@ class SkyGuardPipeline:
                     "severity": severity,
                     "root_cause": root_cause,
                     "confidence": confidence,
-                    "correction": correction
+                    "correction": correction,
+                    "shap_explanation": shap_exp
                 }
                 station_updates.append(station_summary)
 
                 # If an active anomaly is identified, record it
                 if fused_score >= 40.0 or classification in ["GENUINE WEATHER EVENT", "FROZEN SENSOR", "SENSOR DRIFT", "COMMUNICATION ISSUE"]:
+                    if not shap_exp:
+                        shap_exp = self.shap_explainer.explain(
+                            feature_dict=ml_features,
+                            anomaly_score=fused_score,
+                            classification=classification,
+                            root_cause=root_cause,
+                            confidence=confidence
+                        )
+                        self.latest_explanations[sid] = shap_exp
+
                     anomaly_record = {
                         "id": len(self.active_anomaly_records) + 1,
                         "station_id": sid,
@@ -262,7 +290,8 @@ class SkyGuardPipeline:
                         "explanation": explanation,
                         "correction": correction,
                         "spatial_metrics": spat_metrics,
-                        "is_ground_truth": is_ground_truth
+                        "is_ground_truth": is_ground_truth,
+                        "shap_explanation": shap_exp
                     }
                     cycle_anomalies.append(anomaly_record)
                     self.latest_anomalies[sid] = anomaly_record
@@ -479,6 +508,55 @@ class SkyGuardPipeline:
             if a.get("id") == anomaly_id:
                 return a
         return None
+
+    def get_anomaly_explanation(self, anomaly_id: int) -> Optional[Dict[str, Any]]:
+        anomaly = self.get_anomaly_by_id(anomaly_id)
+        if not anomaly:
+            return None
+        if "shap_explanation" in anomaly and anomaly["shap_explanation"]:
+            return anomaly["shap_explanation"]
+        
+        # Calculate explanation on demand from features or parameters
+        sid = anomaly.get("station_id")
+        features = self.latest_features.get(sid) or {
+            "temperature_c": anomaly.get("observed_value") or 28.0,
+            "pressure_hpa": 1005.0,
+            "relative_humidity": 65.0
+        }
+        explanation = self.shap_explainer.explain(
+            feature_dict=features,
+            anomaly_score=anomaly.get("anomaly_score", 50.0),
+            classification=anomaly.get("classification", "ANOMALY"),
+            root_cause=anomaly.get("root_cause", "Observed Discrepancy"),
+            confidence=anomaly.get("confidence", 85.0)
+        )
+        anomaly["shap_explanation"] = explanation
+        return explanation
+
+    def get_station_explanation(self, station_id: str) -> Optional[Dict[str, Any]]:
+        station_id = self._normalize_station_id(station_id)
+        if station_id in self.latest_explanations and self.latest_explanations[station_id]:
+            return self.latest_explanations[station_id]
+
+        obs = self.latest_observations.get(station_id)
+        if not obs:
+            return None
+
+        features = self.latest_features.get(station_id) or {
+            "temperature_c": obs.get("temperature_c"),
+            "pressure_hpa": obs.get("pressure_hpa"),
+            "relative_humidity": obs.get("relative_humidity")
+        }
+        anom = self.latest_anomalies.get(station_id, {})
+        explanation = self.shap_explainer.explain(
+            feature_dict=features,
+            anomaly_score=anom.get("anomaly_score", 15.0),
+            classification=anom.get("classification", "NORMAL"),
+            root_cause=anom.get("root_cause", "Nominal Telemetry"),
+            confidence=anom.get("confidence", 95.0)
+        )
+        self.latest_explanations[station_id] = explanation
+        return explanation
 
     def get_analytics_summary(self) -> Dict[str, Any]:
         # Calculate distributions from actual recorded data

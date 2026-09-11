@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from backend.app.schemas.station import (
     StationResponse, ObservationSchema, AnomalySchema,
     SensorHealthSchema, AnomalyInjectionRequest, SimulationControlRequest,
-    EvaluationMetricsResponse
+    EvaluationMetricsResponse, ShapExplanationResponse
 )
 from backend.app.simulator.network import STATIONS_METADATA
 from backend.app.config import settings
@@ -82,6 +82,20 @@ async def get_anomaly_detail(anomaly_id: int, pipeline = Depends(get_pipeline)):
     if not detail:
         raise HTTPException(status_code=404, detail="Anomaly record not found")
     return detail
+
+@router.get("/anomalies/{anomaly_id}/explanation", response_model=ShapExplanationResponse)
+async def get_anomaly_shap_explanation(anomaly_id: int, pipeline = Depends(get_pipeline)):
+    explanation = pipeline.get_anomaly_explanation(anomaly_id)
+    if not explanation:
+        raise HTTPException(status_code=404, detail=f"No explanation found for anomaly {anomaly_id}")
+    return explanation
+
+@router.get("/stations/{station_id}/explanation", response_model=ShapExplanationResponse)
+async def get_station_shap_explanation(station_id: str, pipeline = Depends(get_pipeline)):
+    explanation = pipeline.get_station_explanation(station_id)
+    if not explanation:
+        raise HTTPException(status_code=404, detail=f"No telemetry or explanation available for station {station_id}")
+    return explanation
 
 @router.get("/analytics")
 async def get_analytics(pipeline = Depends(get_pipeline)):

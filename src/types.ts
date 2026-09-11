@@ -89,6 +89,7 @@ export interface AnomalyDetectionResult {
     imputationMethod: 'SPATIAL_NEIGHBOR_MEDIAN' | 'TEMPORAL_ROLLING_MEAN' | 'KALMAN_PROXY';
     confidence: number;
   };
+  shapExplanation?: ShapExplanation;
 }
 
 export interface SensorHealthRecord {
@@ -161,4 +162,30 @@ export interface OpenMeteoReferenceData {
   windSpeed: number;
   weatherCode: number;
   weatherDescription: string;
+}
+
+export interface ShapFeatureContribution {
+  feature: string;
+  display_name: string;
+  value: number;
+  unit: string;
+  description?: string;
+  shap_value: number;
+  raw_tree_shap?: number;
+  importance: number;
+  direction: 'anomaly_increasing' | 'anomaly_decreasing';
+  impact_description: string;
+}
+
+export interface ShapExplanation {
+  available: boolean;
+  model: string;
+  anomaly_score: number;
+  base_value: number;
+  expected_value: number;
+  top_features: ShapFeatureContribution[];
+  all_features?: ShapFeatureContribution[];
+  summary: string;
+  root_cause?: string;
+  confidence?: number;
 }
